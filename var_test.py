@@ -32,9 +32,9 @@ AAPL = yf.download(stock_symbol, start=start_date,end=end_date)
 stock_symbol = "SPY"
 SPY = yf.download(stock_symbol, start=start_date,end=end_date)
 
-C_price_a = AAPL[['Close']]
-C_price_a ['returns'] = C_price_a .Close.pct_change()
-C_price_a  = C_price_a .dropna()
+C_price_a = AAPL[['Adj Close']]
+C_price_a ['returns'] = C_price_a['Adj Close'].pct_change()
+C_price_a  = C_price_a.dropna()
 plt.hist(C_price_a.returns, bins=40)
 plt.title('Apple Returns Histogram')
 plt.xlabel('Returns')
@@ -42,8 +42,8 @@ plt.ylabel('Frequency')
 plt.grid(True)
 plt.show()
 
-C_price_s = SPY[['Close']]
-C_price_s ['returns'] = C_price_s.Close.pct_change()
+C_price_s = SPY[['Adj Close']]
+C_price_s ['returns'] = C_price_s['Adj Close'].pct_change()
 C_price_s  = C_price_s.dropna()
 plt.hist(C_price_s.returns, bins=40)
 plt.title('SPY Returns Histogram')
@@ -52,55 +52,95 @@ plt.ylabel('Frequency')
 plt.grid(True)
 plt.show()
 
-#VaR of Apple and SPY based on their 1 year returns.
-VaR_90_a = C_price_a['returns'].quantile(0.1)
-VaR_95_a = C_price_a['returns'].quantile(0.05)
-VaR_99_a = C_price_a['returns'].quantile(0.01)
+data = pd.concat([C_price_a, C_price_s], axis = 1)
 
-print('--------------------------VaR for APPLE:--------------------------')
-print (tabulate([['90%', VaR_90_a], ['95%', VaR_95_a], ['99%', VaR_99_a]], headers = ['Confidence Level', 'Value at Risk']))
+fig, ax = plt.subplots(figsize=(10, 7))
 
+ax.boxplot(data.iloc[:,0], positions=[1])
+ax.boxplot(data.iloc[:,2], positions=[2])
 
-print('--------------------------VaR for SPY:----------------------------')
-VaR_90_s = C_price_s['returns'].quantile(0.1)
-VaR_95_s = C_price_s['returns'].quantile(0.05)
-VaR_99_s = C_price_s['returns'].quantile(0.01)
+ax.set_xticks([1, 2])
+ax.set_xticklabels(['Apple', 'Spy'])
+ax.legend(['Apple', 'Spy'], bbox_to_anchor=(1, .75))
+ax.set_xlabel('Stocks')
+ax.set_ylabel('Price')
+ax.set_title('Adjusted Close Values of 1 Year')
+plt.show()
 
-print (tabulate([['90%', VaR_90_s], ['95%', VaR_95_s], ['99%', VaR_99_s]], headers = ['Confidence Level', 'Value at Risk']))
+data = pd.concat([C_price_a, C_price_s], axis = 1)
 
-"""Apple and SPY GARCH GJR and VaR forcasted calculations."""
+fig, ax = plt.subplots(figsize=(10, 7))
+
+ax.plot(data['Adj Close'])
+ax.legend(['Apple', 'Spy'], bbox_to_anchor=(1, .75))
+ax.set_xlabel('Stocks')
+ax.set_ylabel('Price')
+ax.set_title('Adjusted Close Values of 1 Year')
+plt.show()
+
+#Apple Descriptive Statistics
+round(C_price_a.describe(), 2)
+
+# Spy Descriptive Statistics
+round(C_price_s.describe(), 2)
+
+"""Apple and SPY GARCH GJR calculations."""
+
+#volatility for SPY
+C_price_s.dropna(inplace=True)
+daily_volatility = C_price_s ['returns'].std()
+print('Daily volatility: ', '{:.2f}%'.format(daily_volatility))
+
+monthly_volatility = np.sqrt(21) * daily_volatility
+print('Monthly volatility: ', '{:.2f}%'.format(monthly_volatility))
+
+yearly_volatility = np.sqrt(252) * daily_volatility
+print('Yearly volatility: ', '{:.2f}%'.format(yearly_volatility))
+
+#volatility for APPLE
+C_price_a.dropna(inplace=True)
+daily_volatility = C_price_a ['returns'].std()
+print('Daily volatility: ', '{:.2f}%'.format(daily_volatility))
+
+monthly_volatility = np.sqrt(21) * daily_volatility
+print('Monthly volatility: ', '{:.2f}%'.format(monthly_volatility))
+
+yearly_volatility = np.sqrt(252) * daily_volatility
+print('Yearly volatility: ', '{:.2f}%'.format(yearly_volatility))
 
 C_price_s.dropna(inplace=True)
 
-#Garch (1,1) model
-model_s = arch_model(C_price_s['returns'], p=1, o =1, q=1, mean='constant', vol='GARCH', dist='skewt')
+#Garch-GJR model
+model_s = arch_model(C_price_s['returns'], p=1, o =1, q=1, mean='constant', vol='GARCH', dist='normal')
 result_s = model_s.fit(disp="on", last_obs = end_date)
 result_s.summary()
 
 C_price_a.dropna(inplace=True)
 
-#Garch (1,1) model
-model_a = arch_model(C_price_a['returns'], p=1, o =1, q=1, mean='constant', vol='GARCH', dist='skewt')
+#Garch-GJR model
+model_a = arch_model(C_price_a['returns'], p=1, o =1, q=1, mean='constant', vol='GARCH', dist='normal')
 result_a = model_a.fit(disp="on", last_obs = end_date)
 result_a.summary()
 
 # Get model estimated volatility
-normal_volatility = result_s.conditional_volatility
+normal_volatility_s = result_s.conditional_volatility
 
 # Plot model fitting results
 plt.figure(figsize=(12,6))
-plt.plot(normal_volatility, color = 'turquoise', label = 'Normal Volatility')
+plt.plot(normal_volatility_s, color = 'turquoise', label = 'GARCH GJR Volatility')
 plt.plot(C_price_s['returns'], color = 'grey', label = 'Daily Returns', alpha = 0.4)
 plt.legend(loc = 'upper right', frameon=False)
+plt.title('SPY Historic Returns and GARCH GJR Volatility')
 
 # Get model estimated volatility
-normal_volatility = result_a.conditional_volatility
+normal_volatility_a = result_a.conditional_volatility
 
 # Plot model fitting results
 plt.figure(figsize=(12,6))
-plt.plot(normal_volatility, color = 'turquoise', label = 'Normal Volatility')
+plt.plot(normal_volatility_a, color = 'turquoise', label = 'GARCH GJR Volatility')
 plt.plot(C_price_a['returns'], color = 'grey', label = 'Daily Returns', alpha = 0.4)
 plt.legend(loc = 'upper right', frameon=False)
+plt.title('Apple Historic Returns and GARCH GJR Volatility')
 
 from datetime import datetime, timedelta
 days = np.arange(1, 11)
@@ -119,72 +159,172 @@ appl_forecast = result_a.forecast(horizon = 10)
 appl_return_f = np.sqrt(appl_forecast.variance[-1:].T)
 appl_return_f.column = ['Returns']
 
-spy_return_f
-
 spy_list = spy_return_f.values
 spy_list = pd.DataFrame(spy_list)
 result = pd.concat([days, spy_list], axis = 1)
 result = result.set_axis(['Date', 'returns'], axis=1)
+result = pd.DataFrame(result.iloc[-1:,])
 
-appl_list = appl_return_f.values
-appl_list = pd.DataFrame(appl_list)
-result = pd.concat([days, appl_list], axis = 1)
-result = result.set_axis(['Date', 'returns'], axis=1)
+spy_return_f
 
 dates_old = pd.DataFrame(C_price_s.index)
 dates_new = pd.DataFrame(result['Date'])
 spy_returns_fhist = pd.concat([C_price_s['returns'], result['returns']], ignore_index=True)
 result.dropna()
 dates = pd.DataFrame()
-dates = pd.concat([dates_old, dates_new], ignore_index=True)
+dates = pd.concat([dates_old, dates_new.iloc[-1:,]], ignore_index=True)
+
+appl_list = appl_return_f.values
+appl_list = pd.DataFrame(appl_list)
+result = pd.concat([days, appl_list], axis = 1)
+result = result.set_axis(['Date', 'returns'], axis=1)
+result = pd.DataFrame(result.iloc[-1:,])
 
 dates_old = pd.DataFrame(C_price_a.index)
 dates_new = pd.DataFrame(result['Date'])
 appl_returns_fhist = pd.concat([C_price_a['returns'], result['returns']], ignore_index=True)
 result.dropna()
 
-spy_returns_df = pd.concat([dates, spy_returns_fhist], axis = 1)
+spy_returns_df = pd.concat([dates['Date'], spy_returns_fhist], axis = 1)
 spy_returns_df['Date'] = pd.to_datetime(spy_returns_df['Date'])
 
-appl_returns_df = pd.concat([dates, appl_returns_fhist], axis = 1)
+appl_returns_df = pd.concat([dates['Date'], appl_returns_fhist], axis = 1)
 appl_returns_df['Date'] = pd.to_datetime(appl_returns_df['Date'])
 
 #plotting 10 day with the old returns
 
-end_date = '2023-11-01'
 end_date = datetime.strptime(end_date, '%Y-%m-%d')
 
 plt.figure(figsize=(12,6))
 plt.plot(spy_returns_df['Date'], spy_returns_df['returns'], label='Historical Prices', color='lightcoral', alpha=0.7)
-plt.axvline(x=end_date, color='green', linestyle='--', label='End Date')
+plt.axvline(x=end_date, color='green', linestyle='--', label='End Date', alpha = 0.3)
 plt.xlabel('Days')
 plt.ylabel('% Return')
-plt.title('SPY Inc with Present 10-Day Value at Risk (VaR) Forecast')
+plt.title('SPY GARCH GJR Returns with 10th Day Forecast')
 plt.grid(True)
 plt.show()
 
 #plotting 10 day with the old returns
 
-end_date = '2023-11-01'
-end_date = datetime.strptime(end_date, '%Y-%m-%d')
+#end_date = datetime.strptime(end_date, '%Y-%m-%d')
 
 plt.figure(figsize=(12,6))
 plt.plot(appl_returns_df['Date'], appl_returns_df['returns'], label='Historical Prices', color='lightcoral', alpha=0.7)
-plt.axvline(x=end_date, color='green', linestyle='--', label='End Date')
+plt.axvline(x=end_date, color='green', linestyle='--', label='End Date', alpha = 0.3)
 plt.xlabel('Days')
 plt.ylabel('% Return')
-plt.title('Apple Inc with Present 10-Day Value at Risk (VaR) Forecast')
+plt.title('Apple GARCH GJR Returns with 10th Day Forecast')
 plt.grid(True)
 plt.show()
 
-Spy_VaR = np.percentile(spy_returns_df['returns'], .05)
-Appl_VaR = np.percentile(appl_returns_df['returns'], .05)
-
 """And now here is our final calculation at VaR using both Apple and Spy evaluations in out portfolio."""
 
-#Final VaR
-market_var = Appl_VaR * 186.79 * 100 + Spy_VaR * 281.12 * -100 + 10000*1
-portfolio_var = np.percentile(market_var, 0.05)
+#Preppring for VaR
+market_var = appl_list.iloc[-1:,] * 186.79 * 100 + spy_list.iloc[-1:,] * 281.12 * -100 + 10000*1
+val = market_var[0].values[0]
 
-print(f"Our ten day forcasted portfoliio for both Apple and Spy is: ${round(market_var.T,2)}")
-print(f"Our expected gain at the 5% risk in our portfolio is ${round((10000 - portfolio_var),2)}")
+#Portfolio Weights
+h = np.array([100,-100, 10000])
+p = np.array([186.79, 281.12, 1])
+
+w = h* p / np.sum(h * p)
+
+#Historic VaR
+list_df = pd.DataFrame({'zeros': [0] * len(C_price_a)}, index=C_price_a.index)
+merged_returns = pd.concat([C_price_a['returns'], C_price_s['returns'], list_df['zeros']], axis=1)
+
+#GARCH GJR VaR
+#merged_returns_GJR = pd.concat([normal_volatility_a, normal_volatility_s, list_df['zeros']], axis=1)
+list_df = pd.DataFrame({'zeros': [0] * len(appl_returns_df)})
+merged_returns_GJR = pd.concat([appl_returns_df['returns'], spy_returns_df['returns'], list_df['zeros']], axis=1)
+
+mvs = val * (1 + merged_returns.dot(w))
+
+plt.title('Portfolio and Historic Prices')
+plt.plot(mvs)
+loss = val - mvs
+plt.figure()
+
+plt.hist(loss, bins=20)
+plt.gca().set_xlabel('Losses')
+plt.title('Portfolio Historic Losses')
+
+print('Losses: \n', pd.DataFrame(loss).describe(percentiles=[0.5, 0.90, 0.95, 0.99]))
+
+VaR95 = np.percentile(loss, 95)
+CVaR95 = loss[loss>VaR95].mean()
+print(f'current MV: {val}\t VaR (95% daily): {VaR95}\tCVaR: {CVaR95}')
+
+print(f"Our portfoliio is: ${round(val, 2)}")
+print(f"Our expected loss at the 5% risk using historical data and our portfolio is ${round(VaR95, 2)} or greater.")
+
+mvs_gjr = val * (1 + merged_returns_GJR.dot(w))
+
+plt.title('Portfolio and Weighted Prices Using GARCH GJR')
+plt.plot(mvs_gjr)
+loss_gjr = val - mvs_gjr
+plt.figure()
+
+plt.hist(loss_gjr, bins=20)
+plt.gca().set_xlabel('Losses')
+plt.title('Portfolio Using GARCH GJR Losses')
+
+print('Losses: \n', pd.DataFrame(loss_gjr).describe(percentiles=[0.5, 0.90, 0.95, 0.99]))
+
+VaR95_gjr = np.percentile(loss_gjr, 95)
+CVaR95_gjr = loss_gjr[loss_gjr>VaR95_gjr].mean()
+print(f'current MV: {val}\t VaR (95% daily): {VaR95_gjr}\tCVaR: {CVaR95_gjr}')
+
+print(f"Our portfoliio is: ${round(val, 2)}")
+print(f"Our expected loss at the 5% risk using GARCH GJR and our portfolio is ${round(VaR95_gjr, 2)} or greater.")
+
+"""Backtesting"""
+
+# install packages
+from sklearn.metrics import mean_absolute_error
+from sklearn.metrics import mean_squared_error
+
+#Backtesting for the APPLE
+# observation and forecast variance
+forecast_var_fixed = appl_return_f
+model_result= model_a.fit()
+actual_var = model_result.conditional_volatility ** 2
+actual_var = actual_var['2023-09-09':'2023-09-22']
+
+# Convert actual and forecast variance to numpy arrays
+actual_var, forecast_var_fixed = np.array(actual_var), np.array(forecast_var_fixed)
+
+def evaluate(observation, forecast):
+
+    # Mean Absolute Error (MAE)
+    mae = mean_absolute_error(observation, forecast)
+    print('Mean Absolute Error (MAE): {:.3g}'.format(mae))
+
+    # Mean Squared Error (MSE)
+    mse = mean_squared_error(observation, forecast)
+    print('Mean Squared Error (MSE): {:.3g}'.format(mse))
+
+    # Mean Absolute Percentage Error (MAPE)
+    mape = np.mean(np.abs((observation - forecast) / observation)) * 100
+    print('Mean Absolute Percentage Error (MAPE): {:.3g}'.format(mape))
+
+    return mae, mse, mape
+
+# Backtest model with MAE, MSE
+evaluate(actual_var, forecast_var_fixed)
+
+#Backtesting for SPY
+
+forecast_var_fixed = spy_return_f
+model_result= model_s.fit()
+actual_var = model_result.conditional_volatility ** 2
+actual_var = actual_var['2023-09-09':'2023-09-22']
+
+actual_var, forecast_var_fixed = np.array(actual_var), np.array(forecast_var_fixed)
+
+evaluate(actual_var, forecast_var_fixed)
+
+"""MAE and MSE represents the average absolute/squared difference between the actual and forecasted values. For both Apple and SPY the MAE/MSE are lowest, it indicates that our model has better accuracy.
+For Apple , MAE is 0.06   and MSE is 0.005
+For SPY , MAE is 0.014  and MSE is 0.0002
+"""
