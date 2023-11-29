@@ -15,7 +15,7 @@ import yfinance as yf
 from arch import arch_model
 
 from tabulate import tabulate
-import seaborn
+import seaborn as sns
 import matplotlib.mlab as mlab
 import warnings
 warnings.filterwarnings("ignore")
@@ -33,8 +33,8 @@ stock_symbol = "SPY"
 SPY = yf.download(stock_symbol, start=start_date,end=end_date)
 
 C_price_a = AAPL[['Adj Close']]
-C_price_a ['returns'] = C_price_a['Adj Close'].pct_change()
-C_price_a  = C_price_a.dropna()
+C_price_a ['returns'] = C_price_a['Adj Close'].pct_change()*100
+#C_price_a  = C_price_a.dropna()
 plt.hist(C_price_a.returns, bins=40)
 plt.title('Apple Returns Histogram')
 plt.xlabel('Returns')
@@ -43,8 +43,8 @@ plt.grid(True)
 plt.show()
 
 C_price_s = SPY[['Adj Close']]
-C_price_s ['returns'] = C_price_s['Adj Close'].pct_change()
-C_price_s  = C_price_s.dropna()
+C_price_s ['returns'] = C_price_s['Adj Close'].pct_change()*100
+#C_price_s  = C_price_s.dropna()
 plt.hist(C_price_s.returns, bins=40)
 plt.title('SPY Returns Histogram')
 plt.xlabel('Returns')
@@ -61,10 +61,10 @@ ax.boxplot(data.iloc[:,2], positions=[2])
 
 ax.set_xticks([1, 2])
 ax.set_xticklabels(['Apple', 'Spy'])
-ax.legend(['Apple', 'Spy'], bbox_to_anchor=(1, .75))
 ax.set_xlabel('Stocks')
 ax.set_ylabel('Price')
 ax.set_title('Adjusted Close Values of 1 Year')
+
 plt.show()
 
 data = pd.concat([C_price_a, C_price_s], axis = 1)
@@ -79,34 +79,36 @@ ax.set_title('Adjusted Close Values of 1 Year')
 plt.show()
 
 #Apple Descriptive Statistics
-round(C_price_a.describe(), 2)
+round(C_price_a.describe(), 3)
 
 # Spy Descriptive Statistics
-round(C_price_s.describe(), 2)
+round(C_price_s.describe(), 3)
+
+round(data.describe(), 3)
 
 """Apple and SPY GARCH GJR calculations."""
 
 #volatility for SPY
 C_price_s.dropna(inplace=True)
 daily_volatility = C_price_s ['returns'].std()
-print('Daily volatility: ', '{:.2f}%'.format(daily_volatility))
+print('Daily volatility: ', '{:.2f}'.format(daily_volatility))
 
 monthly_volatility = np.sqrt(21) * daily_volatility
-print('Monthly volatility: ', '{:.2f}%'.format(monthly_volatility))
+print('Monthly volatility: ', '{:.2f}'.format(monthly_volatility))
 
 yearly_volatility = np.sqrt(252) * daily_volatility
-print('Yearly volatility: ', '{:.2f}%'.format(yearly_volatility))
+print('Yearly volatility: ', '{:.2f}'.format(yearly_volatility))
 
 #volatility for APPLE
 C_price_a.dropna(inplace=True)
 daily_volatility = C_price_a ['returns'].std()
-print('Daily volatility: ', '{:.2f}%'.format(daily_volatility))
+print('Daily volatility: ', '{:.2f}'.format(daily_volatility))
 
 monthly_volatility = np.sqrt(21) * daily_volatility
-print('Monthly volatility: ', '{:.2f}%'.format(monthly_volatility))
+print('Monthly volatility: ', '{:.2f}'.format(monthly_volatility))
 
 yearly_volatility = np.sqrt(252) * daily_volatility
-print('Yearly volatility: ', '{:.2f}%'.format(yearly_volatility))
+print('Yearly volatility: ', '{:.2f}'.format(yearly_volatility))
 
 C_price_s.dropna(inplace=True)
 
@@ -115,12 +117,20 @@ model_s = arch_model(C_price_s['returns'], p=1, o =1, q=1, mean='constant', vol=
 result_s = model_s.fit(disp="on", last_obs = end_date)
 result_s.summary()
 
+parameters = pd.DataFrame({'parameter': result_s.params,
+                           'p-value': result_s.pvalues})
+parameters
+
 C_price_a.dropna(inplace=True)
 
 #Garch-GJR model
-model_a = arch_model(C_price_a['returns'], p=1, o =1, q=1, mean='constant', vol='GARCH', dist='normal')
+model_a = arch_model(C_price_a['returns'], p=1, o =1, q=1, mean='constant', vol='GARCH', dist='skewt')
 result_a = model_a.fit(disp="on", last_obs = end_date)
 result_a.summary()
+
+parameters = pd.DataFrame({'parameter': result_a.params,
+                           'p-value': result_a.pvalues})
+parameters
 
 # Get model estimated volatility
 normal_volatility_s = result_s.conditional_volatility
@@ -129,6 +139,8 @@ normal_volatility_s = result_s.conditional_volatility
 plt.figure(figsize=(12,6))
 plt.plot(normal_volatility_s, color = 'turquoise', label = 'GARCH GJR Volatility')
 plt.plot(C_price_s['returns'], color = 'grey', label = 'Daily Returns', alpha = 0.4)
+plt.xlabel('Days')
+plt.ylabel('% Return')
 plt.legend(loc = 'upper right', frameon=False)
 plt.title('SPY Historic Returns and GARCH GJR Volatility')
 
@@ -139,6 +151,8 @@ normal_volatility_a = result_a.conditional_volatility
 plt.figure(figsize=(12,6))
 plt.plot(normal_volatility_a, color = 'turquoise', label = 'GARCH GJR Volatility')
 plt.plot(C_price_a['returns'], color = 'grey', label = 'Daily Returns', alpha = 0.4)
+plt.xlabel('Days')
+plt.ylabel('% Return')
 plt.legend(loc = 'upper right', frameon=False)
 plt.title('Apple Historic Returns and GARCH GJR Volatility')
 
@@ -220,7 +234,7 @@ plt.show()
 """And now here is our final calculation at VaR using both Apple and Spy evaluations in out portfolio."""
 
 #Preppring for VaR
-market_var = appl_list.iloc[-1:,] * 186.79 * 100 + spy_list.iloc[-1:,] * 281.12 * -100 + 10000*1
+market_var = appl_list.iloc[-1:,]/100* 186.79 * 100 + spy_list.iloc[-1:,]/100 * 281.12 * -100 + 10000*1
 val = market_var[0].values[0]
 
 #Portfolio Weights
@@ -231,12 +245,12 @@ w = h* p / np.sum(h * p)
 
 #Historic VaR
 list_df = pd.DataFrame({'zeros': [0] * len(C_price_a)}, index=C_price_a.index)
-merged_returns = pd.concat([C_price_a['returns'], C_price_s['returns'], list_df['zeros']], axis=1)
+merged_returns = pd.concat([C_price_a['returns']/100, C_price_s['returns']/100, list_df['zeros']], axis=1)
 
 #GARCH GJR VaR
 #merged_returns_GJR = pd.concat([normal_volatility_a, normal_volatility_s, list_df['zeros']], axis=1)
 list_df = pd.DataFrame({'zeros': [0] * len(appl_returns_df)})
-merged_returns_GJR = pd.concat([appl_returns_df['returns'], spy_returns_df['returns'], list_df['zeros']], axis=1)
+merged_returns_GJR = pd.concat([appl_returns_df['returns']/100, spy_returns_df['returns']/100, list_df['zeros']], axis=1)
 
 mvs = val * (1 + merged_returns.dot(w))
 
@@ -258,7 +272,7 @@ print(f'current MV: {val}\t VaR (95% daily): {VaR95}\tCVaR: {CVaR95}')
 print(f"Our portfoliio is: ${round(val, 2)}")
 print(f"Our expected loss at the 5% risk using historical data and our portfolio is ${round(VaR95, 2)} or greater.")
 
-mvs_gjr = val * (1 + merged_returns_GJR.dot(w))
+mvs_gjr = val * (1 + merged_returns_GJR.dot(w)).dropna()
 
 plt.title('Portfolio and Weighted Prices Using GARCH GJR')
 plt.plot(mvs_gjr)
@@ -284,6 +298,7 @@ print(f"Our expected loss at the 5% risk using GARCH GJR and our portfolio is ${
 from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import mean_squared_error
 
+
 #Backtesting for the APPLE
 # observation and forecast variance
 forecast_var_fixed = appl_return_f
@@ -305,7 +320,7 @@ def evaluate(observation, forecast):
     print('Mean Squared Error (MSE): {:.3g}'.format(mse))
 
     # Mean Absolute Percentage Error (MAPE)
-    mape = np.mean(np.abs((observation - forecast) / observation)) * 100
+    mape = np.mean(np.abs((observation - forecast) / observation))
     print('Mean Absolute Percentage Error (MAPE): {:.3g}'.format(mape))
 
     return mae, mse, mape
