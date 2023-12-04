@@ -84,7 +84,7 @@ round(C_price_a.describe(), 3)
 # Spy Descriptive Statistics
 round(C_price_s.describe(), 3)
 
-round(data.describe(), 3)
+round(data.dropna().describe(), 3)
 
 """Apple and SPY GARCH GJR calculations."""
 
